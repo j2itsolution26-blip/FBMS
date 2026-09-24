@@ -36,8 +36,14 @@ class Router {
 }
 
 function readJson(req) {
+  if (req.method === 'GET' || req.method === 'HEAD') return Promise.resolve({});
+  // Vercel's Node runtime may have parsed the body already (req.body helper).
+  if (process.env.VERCEL && req.body !== undefined) {
+    if (req.body === null || req.body === '') return Promise.resolve({});
+    if (typeof req.body !== 'object' || Buffer.isBuffer(req.body)) return Promise.reject(new HttpError(415, 'Content-Type must be application/json'));
+    return Promise.resolve(req.body);
+  }
   return new Promise((resolve, reject) => {
-    if (req.method === 'GET' || req.method === 'HEAD') return resolve({});
     let size = 0;
     const chunks = [];
     req.on('data', (c) => {
@@ -56,6 +62,7 @@ function readJson(req) {
 }
 
 function sendJson(res, status, body) {
+  if (status === 204) { res.writeHead(204, { 'Cache-Control': 'no-store' }); res.end(); return; }
   const data = JSON.stringify(body);
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'Content-Length': Buffer.byteLength(data) });
   res.end(data);

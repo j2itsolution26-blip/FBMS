@@ -9,7 +9,6 @@
  */
 const { hashSecret } = require('../auth/passwords');
 const { computeTotals } = require('../services/pricing');
-const { transaction } = require('./database');
 const { businessDate } = require('../lib/time');
 
 const P = (pesos) => Math.round(pesos * 100);
@@ -22,22 +21,33 @@ const STAFF = [
   { username: 'pedro', full_name: 'Pedro Garcia', role: 'kitchen', password: 'Kitchen@123', pin: '4444' },
 ];
 
-function seedIfEmpty(s, { history = true } = {}) {
+async function seedIfEmpty(s, { history = true } = {}) {
   const { db } = s;
-  if (db.prepare('SELECT 1 FROM users LIMIT 1').get()) return null;
-  transaction(db, () => seedCatalogue(db));
-  if (history) seedHistory(s);
+  if (await db.get('SELECT 1 AS x FROM users LIMIT 1')) return null;
+  try {
+    await db.batch(catalogueStatements()); // one atomic round-trip
+  } catch (e) {
+    // A second serverless instance can race us on first boot; theirs won.
+    if (await db.get('SELECT 1 AS x FROM users LIMIT 1')) return null;
+    throw e;
+  }
+  if (history) await seedHistory(s);
   return STAFF.map((u) => `${u.role}: ${u.username} / ${u.password} (PIN ${u.pin})`);
 }
 
-function seedCatalogue(db) {
+/**
+ * The demo catalogue as INSERT statements with explicit ids, so the whole
+ * thing can go to the database as a single batch.
+ */
+function catalogueStatements() {
+  const out = [];
+  const q = (sql, ...args) => out.push({ sql, args });
   const now = new Date().toISOString();
-  const insUser = db.prepare('INSERT INTO users (username, full_name, role, password_hash, pin_hash, active, created_at) VALUES (?, ?, ?, ?, ?, 1, ?)');
-  for (const u of STAFF) insUser.run(u.username, u.full_name, u.role, hashSecret(u.password), hashSecret(u.pin), now);
+  STAFF.forEach((u, i) => q('INSERT INTO users (id, username, full_name, role, password_hash, pin_hash, active, created_at) VALUES (?, ?, ?, ?, ?, ?, 1, ?)',
+    i + 1, u.username, u.full_name, u.role, hashSecret(u.password), hashSecret(u.pin), now));
 
   // ---- ingredients ----
   const ING = {};
-  const insIng = db.prepare('INSERT INTO ingredients (name, unit, stock, reorder_level, cost_per_unit) VALUES (?, ?, ?, ?, ?)');
   const ingredients = [
     ['Burger Bun', 'pc', 400, 80, P(4)], ['Beef Patty', 'pc', 350, 80, P(14)], ['Cheese Slice', 'pc', 500, 100, P(5)],
     ['Bacon Strip', 'pc', 120, 40, P(14)], ['Chicken Piece (raw)', 'pc', 600, 120, P(26)], ['Chicken Fillet', 'pc', 200, 50, P(22)],
@@ -47,19 +57,21 @@ function seedCatalogue(db) {
     ['Cola Syrup', 'ml', 25000, 5000, P(0.05)], ['Soft Serve Mix', 'ml', 18000, 4000, P(0.06)], ['Coffee Beans', 'g', 3000, 600, P(1.2)],
     ['Egg', 'pc', 300, 60, P(8)], ['Longganisa', 'pc', 200, 50, P(12)], ['Peach Mango Filling', 'g', 6000, 1500, P(0.25)], ['Pie Crust', 'pc', 180, 50, P(7)],
   ];
-  for (const [name, unit, stock, reorder, cost] of ingredients) ING[name] = Number(insIng.run(name, unit, stock, reorder, cost).lastInsertRowid);
+  ingredients.forEach(([name, unit, stock, reorder, cost], i) => {
+    ING[name] = i + 1;
+    q('INSERT INTO ingredients (id, name, unit, stock, reorder_level, cost_per_unit) VALUES (?, ?, ?, ?, ?, ?)', i + 1, name, unit, stock, reorder, cost);
+  });
 
   // ---- modifier groups ----
-  const insGroup = db.prepare('INSERT INTO modifier_groups (name, min_select, max_select) VALUES (?, ?, ?)');
-  const insOpt = db.prepare('INSERT INTO modifier_options (group_id, name, price_delta, is_default, sort) VALUES (?, ?, ?, ?, ?)');
-  const insOptRecipe = db.prepare('INSERT INTO option_recipes (option_id, ingredient_id, qty) VALUES (?, ?, ?)');
   const G = {};
+  let gid = 0;
+  let oid = 0;
   function group(key, name, min, max, options) {
-    const gid = Number(insGroup.run(name, min, max).lastInsertRowid);
-    G[key] = gid;
+    G[key] = ++gid;
+    q('INSERT INTO modifier_groups (id, name, min_select, max_select) VALUES (?, ?, ?, ?)', gid, name, min, max);
     options.forEach(([oname, delta, isDefault, recipe], i) => {
-      const oid = Number(insOpt.run(gid, oname, P(delta), isDefault ? 1 : 0, i).lastInsertRowid);
-      for (const [ing, qty] of recipe || []) insOptRecipe.run(oid, ING[ing], qty);
+      q('INSERT INTO modifier_options (id, group_id, name, price_delta, is_default, sort) VALUES (?, ?, ?, ?, ?, ?)', ++oid, gid, oname, P(delta), isDefault ? 1 : 0, i);
+      for (const [ing, qty] of recipe || []) q('INSERT INTO option_recipes (option_id, ingredient_id, qty) VALUES (?, ?, ?)', oid, ING[ing], qty);
     });
   }
   const regDrink = [['Cup 16oz', 1]];
@@ -86,11 +98,6 @@ function seedCatalogue(db) {
   group('pastaAdd', 'Pasta Add-ons', 0, 2, [['Extra Cheese', 15, false, [['Cheese Slice', 1]]], ['Extra Hotdog', 25, false, [['Hotdog', 1]]]]);
 
   // ---- categories & items ----
-  const insCat = db.prepare('INSERT INTO categories (name, icon, color, sort) VALUES (?, ?, ?, ?)');
-  const insItem = db.prepare(`INSERT INTO items (category_id, sku, name, description, price, icon, station, sort) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`);
-  const insIMG = db.prepare('INSERT INTO item_modifier_groups (item_id, group_id, sort) VALUES (?, ?, ?)');
-  const insRecipe = db.prepare('INSERT INTO recipes (item_id, ingredient_id, qty) VALUES (?, ?, ?)');
-
   const menu = [
     ['Value Meals', '🍱', '#dc2626', [
       ['VM1', 'Burger Steak Meal', 'Beef patty with mushroom gravy, rice, side & drink', 149, '🍛', 'assembly', ['mealDrink', 'riceExtras'], [['Beef Patty', 1], ['Rice', 1], ['Gravy', 60]]],
@@ -143,18 +150,21 @@ function seedCatalogue(db) {
       ['F2', 'Burger Party Pack', '6 cheeseburgers, 3 large fries', 649, '🎁', 'grill', [], [['Burger Bun', 6], ['Beef Patty', 6], ['Cheese Slice', 6], ['Potato Fries', 480]]],
     ]],
   ];
-  menu.forEach(([cname, cicon, color, items], ci) => {
-    const cid = Number(insCat.run(cname, cicon, color, ci).lastInsertRowid);
+  let cid = 0;
+  let iid = 0;
+  for (const [cname, cicon, color, items] of menu) {
+    q('INSERT INTO categories (id, name, icon, color, sort) VALUES (?, ?, ?, ?, ?)', ++cid, cname, cicon, color, cid - 1);
     items.forEach(([sku, name, desc, price, icon, station, groups, recipe], ii) => {
-      const iid = Number(insItem.run(cid, sku, name, desc, P(price), icon, station, ii).lastInsertRowid);
-      groups.forEach((g, gi) => insIMG.run(iid, G[g], gi));
-      for (const [ing, qty] of recipe) insRecipe.run(iid, ING[ing], qty);
+      q(`INSERT INTO items (id, category_id, sku, name, description, price, icon, station, sort) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ++iid, cid, sku, name, desc, P(price), icon, station, ii);
+      groups.forEach((g, gi) => q('INSERT INTO item_modifier_groups (item_id, group_id, sort) VALUES (?, ?, ?)', iid, G[g], gi));
+      for (const [ing, qty] of recipe) q('INSERT INTO recipes (item_id, ingredient_id, qty) VALUES (?, ?, ?)', iid, ING[ing], qty);
     });
-  });
+  }
 
-  const insTable = db.prepare('INSERT INTO dining_tables (name, seats, area) VALUES (?, ?, ?)');
-  for (let i = 1; i <= 12; i++) insTable.run(`T${i}`, i <= 8 ? 4 : 6, 'Main Dining');
-  for (let i = 1; i <= 4; i++) insTable.run(`P${i}`, 2, 'Patio');
+  for (let i = 1; i <= 12; i++) q('INSERT INTO dining_tables (name, seats, area) VALUES (?, ?, ?)', `T${i}`, i <= 8 ? 4 : 6, 'Main Dining');
+  for (let i = 1; i <= 4; i++) q('INSERT INTO dining_tables (name, seats, area) VALUES (?, ?, ?)', `P${i}`, 2, 'Patio');
+  return out;
 }
 
 /** Deterministic PRNG so demo data is reproducible. */
@@ -166,93 +176,103 @@ function rng(seed) {
 // Lunch and dinner rush weighting, 7am–10pm.
 const HOUR_WEIGHTS = { 7: 3, 8: 5, 9: 4, 10: 4, 11: 9, 12: 14, 13: 11, 14: 5, 15: 5, 16: 6, 17: 9, 18: 13, 19: 12, 20: 7, 21: 4 };
 
-function seedHistory(s, days = 14) {
+async function seedHistory(s, days = 14) {
   const { db } = s;
   const rand = rng(42);
   const pick = (arr) => arr[Math.floor(rand() * arr.length)];
   const weighted = Object.entries(HOUR_WEIGHTS).flatMap(([h, w]) => Array(w).fill(Number(h)));
-  const items = db.prepare('SELECT * FROM items').all();
+  const items = await db.all('SELECT * FROM items');
   const popular = items.flatMap((i) => Array(i.category_id === 1 ? 5 : i.category_id <= 3 ? 3 : 2).fill(i));
-  const groupsOf = db.prepare('SELECT g.* FROM item_modifier_groups img JOIN modifier_groups g ON g.id = img.group_id WHERE img.item_id = ? ORDER BY img.sort');
-  const optsOf = db.prepare('SELECT * FROM modifier_options WHERE group_id = ?');
-  const cashiers = db.prepare("SELECT id FROM users WHERE role = 'cashier'").all().map((u) => u.id);
-  const admin = db.prepare("SELECT * FROM users WHERE role = 'admin'").get();
-  const vatBps = s.settings.vatBps();
+  const imgs = await db.all('SELECT img.item_id, g.* FROM item_modifier_groups img JOIN modifier_groups g ON g.id = img.group_id ORDER BY img.sort');
+  const allOpts = await db.all('SELECT * FROM modifier_options');
+  const cashiers = (await db.all("SELECT id FROM users WHERE role = 'cashier'")).map((u) => u.id);
+  const admin = await db.get("SELECT * FROM users WHERE role = 'admin'");
+  const vatBps = s.settings.vatBps(await s.settings.all());
   const today = businessDate();
 
-  const insOrder = db.prepare(`INSERT INTO orders (order_no, business_date, type, source, status, kitchen_status, guest_count, sc_pwd_count, sc_pwd_ids,
-      subtotal, sc_pwd_discount, other_discount, vatable_sales, vat_amount, vat_exempt_sales, service_charge, total, or_number,
-      created_by, cashier_id, shift_id, stock_deducted, created_at, updated_at, sent_at, ready_at, served_at, paid_at)
-    VALUES (?, ?, ?, ?, 'paid', 'served', ?, ?, ?, ?, ?, 0, ?, ?, ?, 0, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)`);
-  const insLine = db.prepare(`INSERT INTO order_lines (order_id, item_id, name, station, base_price, unit_price, qty, line_total, modifiers, sent, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`);
-  const insPay = db.prepare(`INSERT INTO payments (order_id, method, amount, tendered, change_given, reference, shift_id, user_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`);
-  const insShift = db.prepare(`INSERT INTO shifts (user_id, terminal, status, opening_float, opened_at) VALUES (?, 'POS-1', 'open', 300000, ?)`);
+  // Explicit ids so each day can be written as one batch.
+  let orderId = ((await db.get('SELECT MAX(id) AS m FROM orders')).m || 0);
+  let shiftId = ((await db.get('SELECT MAX(id) AS m FROM shifts')).m || 0);
   let orNo = 0;
+  const FLOAT = 300000;
 
   for (let d = days; d >= 1; d--) {
     const date = businessDate(new Date(Date.now() - d * 86400_000));
     if (date >= today) continue;
-    transaction(db, () => {
-      const shiftByCashier = new Map(cashiers.map((c) => [c, Number(insShift.run(c, new Date(`${date}T06:30:00+08:00`).toISOString()).lastInsertRowid)]));
-      const weekend = [0, 6].includes(new Date(`${date}T12:00:00+08:00`).getUTCDay());
-      const count = Math.floor((weekend ? 95 : 70) + rand() * 30);
-      const times = Array.from({ length: count }, () => {
-        const h = pick(weighted);
-        return new Date(`${date}T${String(h).padStart(2, '0')}:${String(Math.floor(rand() * 60)).padStart(2, '0')}:${String(Math.floor(rand() * 60)).padStart(2, '0')}+08:00`);
-      }).sort((a, b) => a - b);
-      times.forEach((t, idx) => {
-        const lines = [];
-        const n = 1 + Math.floor(rand() * 3.2);
-        for (let k = 0; k < n; k++) {
-          const item = pick(popular);
-          const mods = [];
-          for (const g of groupsOf.all(item.id)) {
-            const opts = optsOf.all(g.id);
-            if (g.min_select > 0 || rand() < 0.2) {
-              const o = rand() < 0.6 ? (opts.find((x) => x.is_default) || opts[0]) : pick(opts);
-              mods.push({ option_id: o.id, group_id: g.id, group: g.name, name: o.name, price_delta: o.price_delta });
-            }
+    const stmts = [];
+    const q = (sql, ...args) => stmts.push({ sql, args });
+    const shifts = new Map(cashiers.map((c) => [c, { id: ++shiftId, cash: 0 }]));
+    const weekend = [0, 6].includes(new Date(`${date}T12:00:00+08:00`).getUTCDay());
+    const count = Math.floor((weekend ? 95 : 70) + rand() * 30);
+    const times = Array.from({ length: count }, () => {
+      const h = pick(weighted);
+      return new Date(`${date}T${String(h).padStart(2, '0')}:${String(Math.floor(rand() * 60)).padStart(2, '0')}:${String(Math.floor(rand() * 60)).padStart(2, '0')}+08:00`);
+    }).sort((x, y) => x - y);
+
+    times.forEach((t, idx) => {
+      const lines = [];
+      const n = 1 + Math.floor(rand() * 3.2);
+      for (let k = 0; k < n; k++) {
+        const item = pick(popular);
+        const mods = [];
+        for (const g of imgs.filter((x) => x.item_id === item.id)) {
+          const opts = allOpts.filter((o) => o.group_id === g.id);
+          if (g.min_select > 0 || rand() < 0.2) {
+            const o = rand() < 0.6 ? (opts.find((x) => x.is_default) || opts[0]) : pick(opts);
+            mods.push({ option_id: o.id, group_id: g.id, group: g.name, name: o.name, price_delta: o.price_delta });
           }
-          const qty = rand() < 0.85 ? 1 : 2;
-          const unit = item.price + mods.reduce((a, m) => a + m.price_delta, 0);
-          lines.push({ item, mods, qty, unit, line_total: unit * qty, vat_exempt_eligible: true });
         }
-        const guests = 1 + Math.floor(rand() * 3);
-        const sc = rand() < 0.12 ? 1 : 0;
-        const tot = computeTotals({ lines, guestCount: guests, scPwdCount: sc, vatBps });
-        const type = pick(['dine_in', 'dine_in', 'take_out', 'take_out', 'drive_thru', 'delivery']);
-        const source = rand() < 0.22 ? 'kiosk' : 'pos';
-        const cashier = pick(cashiers);
-        const sent = new Date(t.getTime() + 30_000);
-        const ready = new Date(sent.getTime() + (3 + rand() * 7) * 60_000);
-        const served = new Date(ready.getTime() + 60_000);
-        orNo += 1;
-        const oid = Number(insOrder.run(idx + 1, date, type, source, guests, sc, sc ? JSON.stringify([`SC-${Math.floor(100000 + rand() * 899999)}`]) : null,
-          tot.subtotal, tot.sc_pwd_discount, tot.vatable_sales, tot.vat_amount, tot.vat_exempt_sales, tot.total, orNo,
-          cashier, cashier, shiftByCashier.get(cashier), t.toISOString(), t.toISOString(), sent.toISOString(), ready.toISOString(), served.toISOString(), t.toISOString()).lastInsertRowid);
-        for (const l of lines) insLine.run(oid, l.item.id, l.item.name, l.item.station, l.item.price, l.unit, l.qty, l.line_total, JSON.stringify(l.mods), t.toISOString());
-        const r = rand();
-        const method = r < 0.55 ? 'cash' : r < 0.75 ? 'gcash' : r < 0.9 ? 'card' : 'maya';
-        if (method === 'cash') {
-          const tendered = Math.ceil(tot.total / 10000) * 10000 + (rand() < 0.3 ? 10000 : 0);
-          insPay.run(oid, 'cash', tot.total, tendered, tendered - tot.total, null, shiftByCashier.get(cashier), cashier, t.toISOString());
-        } else {
-          insPay.run(oid, method, tot.total, tot.total, 0, method === 'card' ? null : `REF${Math.floor(rand() * 1e10)}`, shiftByCashier.get(cashier), cashier, t.toISOString());
-        }
-      });
-      db.prepare('INSERT INTO counters (name, value) VALUES (?, ?)').run(`order_no:${date}`, count);
-      // Close the day's shifts exactly on expected cash (a clean demo drawer).
-      for (const [, sid] of shiftByCashier) {
-        const { expected_cash } = s.shifts.summary(sid);
-        db.prepare(`UPDATE shifts SET status = 'closed', closed_at = ?, expected_cash = ?, counted_cash = ?, variance = 0 WHERE id = ?`)
-          
-          .run(new Date(`${date}T22:30:00+08:00`).toISOString(), expected_cash, expected_cash, sid);
+        const qty = rand() < 0.85 ? 1 : 2;
+        const unit = item.price + mods.reduce((a, m) => a + m.price_delta, 0);
+        lines.push({ item, mods, qty, unit, line_total: unit * qty, vat_exempt_eligible: true });
+      }
+      const guests = 1 + Math.floor(rand() * 3);
+      const sc = rand() < 0.12 ? 1 : 0;
+      const tot = computeTotals({ lines, guestCount: guests, scPwdCount: sc, vatBps });
+      const type = pick(['dine_in', 'dine_in', 'take_out', 'take_out', 'drive_thru', 'delivery']);
+      const source = rand() < 0.22 ? 'kiosk' : 'pos';
+      const cashier = pick(cashiers);
+      const shift = shifts.get(cashier);
+      const sent = new Date(t.getTime() + 30_000);
+      const ready = new Date(sent.getTime() + (3 + rand() * 7) * 60_000);
+      const served = new Date(ready.getTime() + 60_000);
+      const oid = ++orderId;
+      orNo += 1;
+      q(`INSERT INTO orders (id, order_no, business_date, type, source, status, kitchen_status, guest_count, sc_pwd_count, sc_pwd_ids,
+          subtotal, sc_pwd_discount, other_discount, vatable_sales, vat_amount, vat_exempt_sales, service_charge, total, or_number,
+          created_by, cashier_id, shift_id, stock_deducted, created_at, updated_at, sent_at, ready_at, served_at, paid_at)
+        VALUES (?, ?, ?, ?, ?, 'paid', 'served', ?, ?, ?, ?, ?, 0, ?, ?, ?, 0, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)`,
+        oid, idx + 1, date, type, source, guests, sc, sc ? JSON.stringify([`SC-${Math.floor(100000 + rand() * 899999)}`]) : null,
+        tot.subtotal, tot.sc_pwd_discount, tot.vatable_sales, tot.vat_amount, tot.vat_exempt_sales, tot.total, orNo,
+        cashier, cashier, shift.id, t.toISOString(), served.toISOString(), sent.toISOString(), ready.toISOString(), served.toISOString(), t.toISOString());
+      for (const l of lines) {
+        q(`INSERT INTO order_lines (order_id, item_id, name, station, base_price, unit_price, qty, line_total, modifiers, sent, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`, oid, l.item.id, l.item.name, l.item.station, l.item.price, l.unit, l.qty, l.line_total, JSON.stringify(l.mods), t.toISOString());
+      }
+      const r = rand();
+      const method = r < 0.55 ? 'cash' : r < 0.75 ? 'gcash' : r < 0.9 ? 'card' : 'maya';
+      const pay = `INSERT INTO payments (order_id, method, amount, tendered, change_given, reference, shift_id, user_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+      if (method === 'cash') {
+        const tendered = Math.ceil(tot.total / 10000) * 10000 + (rand() < 0.3 ? 10000 : 0);
+        q(pay, oid, 'cash', tot.total, tendered, tendered - tot.total, null, shift.id, cashier, t.toISOString());
+        shift.cash += tot.total;
+      } else {
+        q(pay, oid, method, tot.total, tot.total, 0, method === 'card' ? null : `REF${Math.floor(rand() * 1e10)}`, shift.id, cashier, t.toISOString());
       }
     });
-    s.reports.generateZ({ ...admin, ip: 'seed' }, date);
+    // The day's shifts, closed exactly on expected cash (a clean demo drawer).
+    for (const [cashier, sh] of shifts) {
+      q(`INSERT INTO shifts (id, user_id, terminal, status, opening_float, expected_cash, counted_cash, variance, opened_at, closed_at)
+        VALUES (?, ?, 'POS-1', 'closed', ?, ?, ?, 0, ?, ?)`, sh.id, cashier, FLOAT, FLOAT + sh.cash, FLOAT + sh.cash,
+        new Date(`${date}T06:30:00+08:00`).toISOString(), new Date(`${date}T22:30:00+08:00`).toISOString());
+    }
+    q('INSERT INTO counters (name, value) VALUES (?, ?)', `order_no:${date}`, count);
+    // Orders reference their shift, so the shift rows must come first in the batch.
+    stmts.sort((x, y) => (x.sql.includes('INTO shifts') ? -1 : 0) - (y.sql.includes('INTO shifts') ? -1 : 0));
+    await db.batch(stmts);
+    await s.reports.generateZ({ ...admin, ip: 'seed' }, date);
   }
-  db.prepare("INSERT INTO counters (name, value) VALUES ('or_number', ?) ON CONFLICT(name) DO UPDATE SET value = excluded.value").run(orNo);
+  await db.run("INSERT INTO counters (name, value) VALUES ('or_number', ?) ON CONFLICT(name) DO UPDATE SET value = excluded.value", orNo);
 }
 
 module.exports = { seedIfEmpty, STAFF };
@@ -264,19 +284,23 @@ if (require.main === module) {
   const config = require('../config');
   const { buildServices } = require('../app');
   const { openDatabase } = require('./database');
-  const run = () => {
+  const run = async () => {
+    if (config.dbUrl) {
+      console.log('Refusing to wipe a hosted database from the CLI. Delete and recreate it in your Turso dashboard instead.');
+      return;
+    }
     for (const suffix of ['', '-wal', '-shm']) fs.rmSync(config.dbPath + suffix, { force: true });
-    const db = openDatabase(config.dbPath);
-    const logins = seedIfEmpty(buildServices(db));
-    db.close();
+    const db = await openDatabase({ file: config.dbPath });
+    const logins = await seedIfEmpty(buildServices(db));
+    await db.close();
     console.log('Database reset and seeded. Demo logins:\n  ' + logins.join('\n  '));
   };
   if (process.argv.includes('--yes') || !fs.existsSync(config.dbPath)) run();
   else {
     const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-    rl.question(`This DELETES ALL DATA in ${config.dbPath}. Type RESET to continue: `, (a) => {
+    rl.question(`This DELETES ALL DATA in ${config.dbPath}. Type RESET to continue: `, (ans) => {
       rl.close();
-      if (a.trim() === 'RESET') run(); else console.log('Aborted.');
+      if (ans.trim() === 'RESET') run(); else console.log('Aborted.');
     });
   }
 }

@@ -2,7 +2,7 @@
 
 A point-of-sale system for quick-service chains (counter, drive-thru, self-order kiosk) and full-service restaurants (tables, open tabs, rounds). It is built for Philippine operations: VAT-inclusive pricing, Senior Citizen / PWD discounts, official-receipt numbering, and X/Z readings.
 
-It has no third-party runtime dependencies. It runs on Node.js 22 with its built-in SQLite, so a single `npm start` runs it on any till PC, mini-PC or container.
+It runs on Node.js 22. An in-store server uses Node's built-in SQLite, so a single `npm start` runs it on any till PC, mini-PC or container. It also runs on **Vercel** with a hosted Turso database (see below).
 
 | Screen | URL | Who |
 |---|---|---|
@@ -18,7 +18,7 @@ It has no third-party runtime dependencies. It runs on Node.js 22 with its built
 ```bash
 cp .env.example .env      # optional
 npm start                 # http://localhost:8080
-npm test                  # unit + API integration tests
+npm test                  # unit + API tests, on both database backends
 ```
 
 On first boot an empty database is seeded with a demo menu, recipes and stock, 16 tables and about two weeks of sales history, so the dashboard has data to show.
@@ -30,7 +30,7 @@ On first boot an empty database is seeded with a demo menu, recipes and stock, 1
 | Cashier | `juan` / `ana` | `Cashier@123` | 1111 / 3333 |
 | Kitchen | `pedro` | `Kitchen@123` | 4444 |
 
-> **Change every demo password and PIN before going live**, or start with `SEED_DEMO=false` on a fresh database.
+> **Change every demo password and PIN before going live**, or start with `SEED_DEMO=false` on a fresh database. The sign-in page then shows a **Set up your store** form where you create the owner (admin) account. The owner adds everyone else in **Back office → Staff**; there is no public sign-up, by design.
 
 `npm run seed` wipes the database and reseeds it. It asks you to type `RESET` first.
 
@@ -81,11 +81,12 @@ docker run -p 8080:8080 -v fbms-data:/data fbms-pos
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the design decision record.
 
 ```
+api/index.js          Vercel serverless entry (same handler as the server)
 server/
-  index.js            process entry (boot, seed, graceful shutdown)
+  index.js            process entry for a long-running server (boot, seed, graceful shutdown)
   app.js              composition root: DB → services → HTTP
   config.js           env-driven configuration
-  db/                 SQLite connection, migration runner, migrations/, seed
+  db/                 async DB layer (node:sqlite locally, libSQL/Turso remote), migrations/, seed
   http/               router, static files, SSE event bus, rate limiter
   auth/               scrypt hashing, RBAC capability map
   services/           business logic (orders, pricing, shifts, inventory, reports, …)
@@ -99,12 +100,31 @@ tests/                node:test unit + API integration tests
 | Variable | Default | Purpose |
 |---|---|---|
 | `PORT` / `HOST` | `8080` / `0.0.0.0` | Listen address |
-| `DB_PATH` | `./data/fbms.db` | SQLite file (WAL mode) |
+| `DB_PATH` | `./data/fbms.db` | Local SQLite file (WAL mode) |
+| `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` | — | Hosted libSQL/Turso database; used instead of `DB_PATH` (required on Vercel) |
+| `SEED_HISTORY` | `true` locally, `false` on Vercel | Also seed two weeks of demo sales |
 | `SESSION_TTL_HOURS` | `12` | Staff session lifetime |
 | `SEED_DEMO` | `true` | Seed demo data into an empty DB |
 | `TZ_BUSINESS` | `Asia/Manila` | Business-date / hourly-report timezone |
 
 Store name, TIN, permit number, VAT, service charge and KDS thresholds are set in **Back office → Settings**.
+
+## Deploy to Vercel
+
+Vercel serves the pages from `public/` and runs the API as a serverless function (`api/index.js`). Serverless functions have no disk that persists, so the data lives in a hosted **Turso** database. Turso is SQLite-compatible and has a free tier.
+
+1. **Create the database.** Sign up at [turso.tech](https://turso.tech), create a database, then copy its **URL** (`libsql://…turso.io`) and create an **auth token**.
+   (Alternatively, add Turso from the **Vercel Marketplace**, which fills in the variables for you.)
+2. **Add environment variables** in Vercel → your project → **Settings → Environment Variables**:
+   - `TURSO_DATABASE_URL` = the `libsql://…` URL
+   - `TURSO_AUTH_TOKEN` = the token
+   - optional `SEED_DEMO=false` to start empty and create your own owner account instead of the demo logins
+   - optional `SEED_HISTORY=true` to also load two weeks of demo sales for the dashboard
+3. **Redeploy** (Deployments → ⋯ → Redeploy). The first request creates the tables and, unless you turned it off, loads the demo menu and staff.
+
+`vercel.json` already sets the build step, the clean URLs (`/pos`, `/kds`, …) and the API route. On Vercel, live updates (kitchen display, Now Serving board, kiosk alerts on the POS) arrive by polling every few seconds instead of a live stream. An in-store server pushes them instantly.
+
+> For a busy store, an **in-store server** (a mini-PC running `npm start`) is still the most robust setup: it keeps selling when the internet is down. Use Vercel for a cloud or demo deployment, or for a single low-volume outlet.
 
 ## Production notes
 

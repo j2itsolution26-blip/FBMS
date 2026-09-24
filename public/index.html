@@ -27,7 +27,19 @@
     </section>
 
     <section class="login-panel card">
+      <div id="server-alert" class="alert hidden" role="alert"></div>
       <div id="view-launch" class="hidden col"></div>
+      <form id="view-setup" class="hidden col" autocomplete="off">
+        <div><h2>Set up your store</h2><p class="muted small">Welcome! Create the owner account. You'll add cashiers, kitchen crew and managers later in Back Office → Staff.</p></div>
+        <label class="field"><span>Store name</span><input class="input" name="store_name" maxlength="80" placeholder="e.g. Kainan ni Aling Nena"></label>
+        <label class="field"><span>Your full name</span><input class="input" name="full_name" maxlength="60" required></label>
+        <div class="grid-2">
+          <label class="field"><span>Username</span><input class="input" name="username" minlength="3" maxlength="30" autocomplete="username" required></label>
+          <label class="field"><span>PIN (4–8 digits)</span><input class="input" name="pin" inputmode="numeric" pattern="\d{4,8}" maxlength="8" required></label>
+        </div>
+        <label class="field"><span>Password (at least 8 characters)</span><input class="input" name="password" type="password" minlength="8" autocomplete="new-password" required></label>
+        <button class="btn primary lg" type="submit">Create owner account</button>
+      </form>
       <div id="view-login" class="col">
         <div class="row"><h2 class="grow">Sign in</h2><button class="btn ghost sm" id="mode-toggle">Use password</button></div>
         <div id="pin-login" class="col">

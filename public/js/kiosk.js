@@ -1,5 +1,5 @@
 // Self-order kiosk (public). Orders land in the POS as open "Kiosk" orders to be paid at the counter.
-import { api, h, $, money, pad, modal, toast, toastError, setCurrency, ORDER_TYPES } from './core.js';
+import { api, h, $, money, pad, modal, toast, toastError, setCurrency, ORDER_TYPES, publicConfig } from './core.js';
 
 const IDLE_MS = 90_000;
 let menu = { categories: [], items: [] };
@@ -133,4 +133,4 @@ document.querySelector('.k-choice').onclick = async (e) => {
 $('#k-start-over').onclick = startOver;
 $('#k-new').onclick = startOver;
 
-api('GET', '/api/public/config').then((c) => { setCurrency(c.currency_symbol); $('#kstore').textContent = `Welcome to ${c.store_name}!`; }).catch(() => {});
+publicConfig().then((c) => { setCurrency(c.currency_symbol); $('#kstore').textContent = `Welcome to ${c.store_name}!`; }).catch(() => {});

@@ -1,5 +1,5 @@
 // Kitchen display: live tickets with age colouring, station filter, bump flow.
-import { api, h, $, pad, toastError, liveEvents, startClock, requireSession, logout, ORDER_TYPES, store } from './core.js';
+import { api, h, $, pad, toastError, liveEvents, startClock, requireSession, logout, ORDER_TYPES, store, publicConfig } from './core.js';
 
 requireSession(['kitchen', 'cashier', 'manager', 'admin']);
 const STATIONS = ['all', 'grill', 'fryer', 'assembly', 'drinks', 'dessert'];
@@ -109,9 +109,10 @@ setInterval(load, 20000);
 
 startClock($('#clock'));
 renderStations();
-api('GET', '/api/public/config').then((c) => { cfg = c; }).catch(() => {});
+publicConfig().then((c) => { cfg = c; }).catch(() => {});
 load();
-liveEvents((ev) => { if (ev.type !== 'order.created') load(); }, (ok) => {
+let reloadTimer;
+liveEvents(() => { clearTimeout(reloadTimer); reloadTimer = setTimeout(load, 150); }, (ok) => {
   $('#live').className = `badge ${ok ? 'ok' : 'bad'}`;
   $('#live').textContent = ok ? '● live' : '● reconnecting';
 });

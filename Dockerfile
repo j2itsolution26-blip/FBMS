@@ -1,8 +1,9 @@
-# FBMS POS — zero runtime dependencies, so the image is just Node + source.
+# FBMS POS. The only npm dependency is the libSQL client (used when TURSO_DATABASE_URL is set).
 FROM node:22-alpine
 WORKDIR /app
 ENV NODE_ENV=production PORT=8080 DB_PATH=/data/fbms.db
-COPY package.json ./
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev && npm cache clean --force
 COPY server ./server
 COPY public ./public
 RUN mkdir -p /data && chown node:node /data

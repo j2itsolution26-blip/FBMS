@@ -1,15 +1,21 @@
 {
   "name": "fbms-pos",
   "version": "1.0.0",
-  "description": "FBMS — Enterprise Food & Beverage POS (quick-service + full-service restaurants)",
+  "description": "FBMS \u2014 Enterprise Food & Beverage POS (quick-service + full-service restaurants)",
   "private": true,
   "type": "commonjs",
-  "engines": { "node": ">=22.13.0" },
+  "engines": {
+    "node": ">=22.13.0"
+  },
   "scripts": {
     "start": "node --disable-warning=ExperimentalWarning --env-file-if-exists=.env server/index.js",
     "dev": "node --disable-warning=ExperimentalWarning --env-file-if-exists=.env --watch server/index.js",
     "seed": "node --disable-warning=ExperimentalWarning --env-file-if-exists=.env server/db/seed.js --reset",
-    "test": "node --disable-warning=ExperimentalWarning --test \"tests/**/*.test.js\""
+    "test": "node --disable-warning=ExperimentalWarning --test \"tests/**/*.test.js\" && FBMS_TEST_BACKEND=libsql node --disable-warning=ExperimentalWarning --test \"tests/**/*.test.js\"",
+    "build": "node scripts/build.js"
   },
-  "license": "UNLICENSED"
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@libsql/client": "^0.18.0"
+  }
 }
