@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kitchen Display</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/app.css">
+  <link rel="stylesheet" href="/css/kds.css">
+</head>
+<body class="kds">
+  <header class="appbar">
+    <div class="logo"><div class="logo-mark">👨‍🍳</div><span>Kitchen</span></div>
+    <div class="stations" id="stations"></div>
+    <div class="spacer"></div>
+    <div class="kstats" id="kstats"></div>
+    <span id="live" class="badge">● connecting</span>
+    <button class="btn sm" id="sound">🔇 Sound off</button>
+    <span class="clock" id="clock"></span>
+    <button class="btn sm" id="out">Sign out</button>
+  </header>
+  <main class="board" id="board"></main>
+  <script type="module" src="/js/kds.js"></script>
+</body>
+</html>

@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Now Serving</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/app.css">
+  <link rel="stylesheet" href="/css/queue.css">
+</head>
+<body class="queue">
+  <header class="q-head"><div class="logo"><div class="logo-mark">🍔</div><span id="store">FBMS</span></div><span class="clock" id="clock"></span></header>
+  <main class="q-cols">
+    <section class="q-col prep"><h2>Preparing</h2><div class="q-nums" id="prep"></div></section>
+    <section class="q-col ready"><h2>Now Serving</h2><div class="q-nums" id="ready"></div></section>
+  </main>
+  <footer class="q-foot">Please wait for your number · Salamat po! 🙏</footer>
+  <script type="module" src="/js/queue.js"></script>
+</body>
+</html>

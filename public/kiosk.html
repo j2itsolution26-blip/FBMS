@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>Self-Order Kiosk</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/app.css">
+  <link rel="stylesheet" href="/css/pos.css">
+  <link rel="stylesheet" href="/css/kiosk.css">
+</head>
+<body class="kiosk">
+  <section id="welcome" class="k-welcome">
+    <div class="k-brand"><div class="logo-mark big">🍔</div><h1 id="kstore">Welcome!</h1><p>Order here, pay at the counter.</p></div>
+    <div class="k-choice">
+      <button class="k-big" data-type="dine_in"><span>🍽️</span>Dine in</button>
+      <button class="k-big" data-type="take_out"><span>🛍️</span>Take out</button>
+    </div>
+  </section>
+  <section id="order" class="k-order hidden">
+    <header class="k-top"><button class="btn lg" id="k-start-over">✕ Start over</button><h2 id="k-type"></h2><span></span></header>
+    <nav class="k-cats" id="k-cats"></nav>
+    <main class="k-items" id="k-items"></main>
+    <footer class="k-bar"><div class="grow"><b id="k-count">0 items</b><div class="muted" id="k-total">₱0.00</div></div><button class="btn primary xl" id="k-review" disabled>Review order →</button></footer>
+  </section>
+  <section id="done" class="k-done hidden">
+    <h2>Thank you!</h2><p>Your order number is</p><div class="k-num" id="k-num"></div>
+    <p class="k-pay">Please pay <b id="k-due"></b> at the counter.<br>Watch the <b>Now Serving</b> screen for your number.</p>
+    <button class="btn primary xl" id="k-new">Start a new order</button>
+  </section>
+  <script type="module" src="/js/kiosk.js"></script>
+</body>
+</html>

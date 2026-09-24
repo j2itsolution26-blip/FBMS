@@ -1,0 +1,16 @@
+body.queue { display: flex; flex-direction: column; height: 100vh; overflow: hidden; background: #0b0b0d; color: #fff; }
+.q-head { display: flex; justify-content: space-between; align-items: center; padding: 18px 28px; font-size: 22px; }
+.q-head .logo { font-size: 26px; }
+.q-cols { flex: 1; display: grid; grid-template-columns: 1fr 1.3fr; gap: 18px; padding: 0 18px 18px; min-height: 0; }
+.q-col { border-radius: 24px; padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; min-height: 0; overflow: hidden; }
+.q-col h2 { font-size: clamp(22px, 3vw, 40px); text-transform: uppercase; letter-spacing: .08em; }
+.q-col.prep { background: #1c1c21; }
+.q-col.prep h2 { color: #fbbf24; }
+.q-col.ready { background: linear-gradient(160deg, #b91c1c, #7f1d1d); }
+.q-nums { display: flex; flex-wrap: wrap; gap: 14px; align-content: flex-start; }
+.q-nums span { font-size: clamp(32px, 5vw, 72px); font-weight: 900; font-variant-numeric: tabular-nums; padding: 6px 18px; border-radius: 16px; background: rgba(255,255,255,.06); }
+.q-col.ready .q-nums span { background: #fff; color: #b91c1c; box-shadow: 0 8px 30px rgba(0,0,0,.3); }
+.q-col.ready .q-nums span.new { animation: flash 1s ease-in-out 4; }
+@keyframes flash { 50% { background: #ffc107; color: #1a1300; transform: scale(1.08); } }
+.q-foot { text-align: center; padding: 12px; font-size: 20px; color: #a1a1aa; }
+@media (max-width: 700px) { .q-cols { grid-template-columns: 1fr; } }

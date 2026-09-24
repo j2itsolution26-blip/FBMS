@@ -1,0 +1,16 @@
+.login-shell { min-height: 100%; display: grid; grid-template-columns: 1.1fr 1fr; gap: 32px; padding: 32px; max-width: 1200px; margin: 0 auto; align-items: center; }
+.login-hero { display: flex; flex-direction: column; gap: 28px; }
+.login-hero h1 { font-size: clamp(28px, 4vw, 44px); letter-spacing: -.03em; margin-bottom: 8px; }
+.hero-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.hero-grid div { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; display: flex; flex-direction: column; gap: 4px; }
+.hero-grid span { color: var(--text-2); font-size: 13px; }
+.login-panel { padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+.roster { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; }
+.roster .tile { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.avatar { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; color: #fff; background: var(--brand); }
+.link { color: var(--info); text-decoration: none; }
+.launch-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.launch-grid a { text-decoration: none; color: inherit; display: flex; flex-direction: column; gap: 6px; padding: 18px; min-height: 120px; }
+.launch-grid a b { font-size: 17px; }
+.launch-grid .ico { font-size: 30px; }
+@media (max-width: 860px) { .login-shell { grid-template-columns: 1fr; padding: 16px; } .hero-grid { grid-template-columns: 1fr; } }

@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>POS Terminal</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/app.css">
+  <link rel="stylesheet" href="/css/pos.css">
+</head>
+<body class="pos">
+  <header class="appbar">
+    <div class="logo"><div class="logo-mark">🍔</div><span class="hide-sm">FBMS</span></div>
+    <div class="seg" id="order-type" role="tablist" aria-label="Order type"></div>
+    <div class="spacer"></div>
+    <button class="btn" id="btn-tables">🍽️ <span class="hide-sm">Tables</span></button>
+    <button class="btn" id="btn-open">📋 <span class="hide-sm">Open orders</span> <span class="badge brand hidden" id="open-count">0</span></button>
+    <button class="btn" id="btn-shift"><span id="shift-dot" class="dot"></span> <span id="shift-label" class="hide-sm">Shift</span></button>
+    <span class="clock hide-sm" id="clock"></span>
+    <button class="btn" id="btn-menu" aria-label="Menu">☰ <span id="user-name" class="hide-sm"></span></button>
+  </header>
+  <div class="pos-body">
+    <nav class="cats" id="cats" aria-label="Categories"></nav>
+    <section class="menu-pane">
+      <div class="menu-tools">
+        <input class="input" id="search" placeholder="Search menu or SKU…  ( / )" autocomplete="off">
+        <span class="badge warn hidden" id="mode-86">86 MODE — tap items to toggle availability</span>
+      </div>
+      <div class="items" id="items"></div>
+    </section>
+    <aside class="ticket card" id="ticket">
+      <div class="ticket-head">
+        <div class="grow">
+          <div class="ticket-title" id="ticket-title">New order</div>
+          <div class="muted small" id="ticket-sub"></div>
+        </div>
+        <button class="btn sm" id="btn-customer" title="Customer / notes">👤</button>
+        <button class="btn sm" id="btn-clear" title="Clear / void">🗑️</button>
+      </div>
+      <div class="lines" id="lines"></div>
+      <div class="totals" id="totals"></div>
+      <div class="ticket-actions">
+        <button class="btn" id="btn-discount">🏷️ Discount</button>
+        <button class="btn" id="btn-sc">👴 SC/PWD</button>
+        <button class="btn" id="btn-hold">⏸ Hold</button>
+        <button class="btn" id="btn-send">🔥 Send</button>
+      </div>
+      <button class="btn primary xl block pay-btn" id="btn-pay">Pay <span id="pay-total">₱0.00</span></button>
+    </aside>
+  </div>
+  <script type="module" src="/js/pos.js"></script>
+</body>
+</html>

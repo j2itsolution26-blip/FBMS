@@ -1,0 +1,29 @@
+body.kds { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+.stations { display: flex; gap: 6px; flex-wrap: wrap; }
+.stations button { border: 1px solid var(--border); background: var(--surface-2); padding: 8px 14px; border-radius: 999px; font-weight: 700; cursor: pointer; text-transform: capitalize; }
+.stations button.on { background: var(--brand-2); color: #1a1300; border-color: var(--brand-2); }
+.kstats { display: flex; gap: 8px; }
+.board { flex: 1; overflow: auto; padding: 14px; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; align-content: start; }
+.kt { display: flex; flex-direction: column; background: var(--surface); border-radius: 14px; overflow: hidden; border: 2px solid var(--border); min-height: 220px; animation: pop .2s ease-out; }
+.kt-head { padding: 10px 12px; display: flex; align-items: center; gap: 10px; background: var(--surface-3); }
+.kt-head .no { font-size: 28px; font-weight: 900; letter-spacing: -.02em; }
+.kt-head .meta { flex: 1; font-size: 12px; font-weight: 700; line-height: 1.3; }
+.kt-head .timer { font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.kt.fresh .kt-head { background: #14532d; color: #dcfce7; }
+.kt.warn .kt-head { background: #854d0e; color: #fef9c3; }
+.kt.late { border-color: #dc2626; }
+.kt.late .kt-head { background: #991b1b; color: #fee2e2; animation: blink 1.2s infinite; }
+.kt.ready { opacity: .75; border-style: dashed; }
+.kt.ready .kt-head { background: var(--ok-soft); color: var(--ok); }
+@keyframes blink { 50% { filter: brightness(1.3); } }
+.kt-lines { flex: 1; padding: 8px 12px; display: flex; flex-direction: column; gap: 8px; }
+.kl { display: grid; grid-template-columns: 34px 1fr; gap: 6px; font-size: 16px; }
+.kl .q { font-weight: 900; font-size: 18px; }
+.kl .n { font-weight: 700; }
+.kl .m { font-size: 13px; color: var(--text-2); }
+.kl .note { font-size: 13px; font-weight: 700; color: var(--warn); }
+.kl.done .n { text-decoration: line-through; opacity: .5; }
+.kt-note { margin: 0 12px 8px; padding: 6px 8px; background: var(--warn-soft); color: var(--warn); border-radius: 8px; font-size: 13px; font-weight: 700; }
+.kt-foot { display: flex; gap: 6px; padding: 10px; border-top: 1px solid var(--border); }
+.kt-foot .btn { flex: 1; min-height: 52px; font-size: 16px; }
+.board .empty { grid-column: 1 / -1; font-size: 22px; padding: 80px; }

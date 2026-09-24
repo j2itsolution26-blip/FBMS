@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FBMS POS</title>
+  <meta name="description" content="Enterprise food & beverage point of sale">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/app.css">
+  <link rel="stylesheet" href="/css/login.css">
+</head>
+<body>
+  <main class="login-shell">
+    <section class="login-hero">
+      <div class="logo"><div class="logo-mark">🍔</div><span>FBMS <span class="faint">POS</span></span></div>
+      <div>
+        <h1 id="store-name">Food & Beverage Management System</h1>
+        <p class="muted">Counter · Drive-thru · Dine-in · Kiosk · Kitchen display · Back office</p>
+      </div>
+      <div class="hero-grid">
+        <div><b>⚡ Fast checkout</b><span>Value meals, upsizes, split tender, GCash & Maya</span></div>
+        <div><b>👨‍🍳 Live kitchen</b><span>KDS with station routing and ticket timers</span></div>
+        <div><b>🧾 BIR-ready</b><span>OR numbering, VAT breakdown, SC/PWD, X & Z readings</span></div>
+        <div><b>📦 Inventory</b><span>Recipe-based depletion and low-stock alerts</span></div>
+      </div>
+      <div class="row small faint"><a href="/queue" class="link">Open "Now Serving" board ↗</a> · <a href="/kiosk" class="link">Open self-order kiosk ↗</a></div>
+    </section>
+
+    <section class="login-panel card">
+      <div id="view-launch" class="hidden col"></div>
+      <div id="view-login" class="col">
+        <div class="row"><h2 class="grow">Sign in</h2><button class="btn ghost sm" id="mode-toggle">Use password</button></div>
+        <div id="pin-login" class="col">
+          <p class="muted small">Tap your name, then enter your PIN.</p>
+          <div id="roster" class="roster"></div>
+          <div id="pin-entry" class="col hidden">
+            <div class="row"><button class="btn ghost sm" id="pin-back">← Back</button><b id="pin-name" class="grow center"></b><span style="width:60px"></span></div>
+            <div class="pin-dots" id="pin-dots"></div>
+            <div id="pin-pad"></div>
+          </div>
+        </div>
+        <form id="pw-login" class="col hidden" autocomplete="on">
+          <label class="field"><span>Username</span><input class="input" name="username" autocomplete="username" required></label>
+          <label class="field"><span>Password</span><input class="input" name="password" type="password" autocomplete="current-password" required></label>
+          <button class="btn primary lg" type="submit">Sign in</button>
+        </form>
+        <label class="field"><span>Terminal</span><input class="input" id="terminal" maxlength="40" placeholder="POS-1"></label>
+      </div>
+    </section>
+  </main>
+  <script type="module" src="/js/login.js"></script>
+</body>
+</html>

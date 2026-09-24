@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Back Office</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/app.css">
+  <link rel="stylesheet" href="/css/admin.css">
+</head>
+<body class="admin">
+  <aside class="side">
+    <div class="logo"><div class="logo-mark">🍔</div><span>FBMS <span class="faint">Back Office</span></span></div>
+    <nav id="nav"></nav>
+    <div class="side-foot">
+      <a class="btn block" href="/pos">🧾 Open POS</a>
+      <div class="row"><button class="btn sm grow" id="theme">🌓 Theme</button><button class="btn sm grow" id="out">Sign out</button></div>
+      <div class="small muted" id="who"></div>
+    </div>
+  </aside>
+  <main class="main" id="main"></main>
+  <div class="viz-tip hidden" id="tip" role="tooltip"></div>
+  <script type="module" src="/js/admin.js"></script>
+</body>
+</html>
