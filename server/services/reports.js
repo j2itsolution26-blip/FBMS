@@ -27,10 +27,10 @@ function createReportService({ db, audit }) {
       AND business_date BETWEEN ? AND ? GROUP BY source`, ...range);
     const topItems = await db.all(`SELECT l.item_id, l.name, SUM(l.qty) AS qty, SUM(l.line_total) AS amount FROM order_lines l
       JOIN orders o ON o.id = l.order_id WHERE o.status IN ('paid','refunded') AND o.business_date BETWEEN ? AND ?
-      GROUP BY l.item_id ORDER BY qty DESC LIMIT 10`, ...range);
+      GROUP BY l.item_id, l.name ORDER BY qty DESC LIMIT 10`, ...range);
     const byCategory = await db.all(`SELECT c.name, SUM(l.qty) AS qty, SUM(l.line_total) AS amount FROM order_lines l
       JOIN orders o ON o.id = l.order_id JOIN items i ON i.id = l.item_id JOIN categories c ON c.id = i.category_id
-      WHERE o.status IN ('paid','refunded') AND o.business_date BETWEEN ? AND ? GROUP BY c.id ORDER BY amount DESC`, ...range);
+      WHERE o.status IN ('paid','refunded') AND o.business_date BETWEEN ? AND ? GROUP BY c.id, c.name ORDER BY amount DESC`, ...range);
     const daily = await db.all(`SELECT business_date AS date, COUNT(*) AS orders, SUM(total) AS amount FROM orders
       WHERE status IN ('paid','refunded') AND business_date BETWEEN ? AND ? GROUP BY business_date ORDER BY business_date`, ...range);
 
@@ -40,14 +40,16 @@ function createReportService({ db, audit }) {
       hourly[h].orders += 1;
       hourly[h].amount += r.total;
     }
-    const speed = await db.get(`SELECT AVG((julianday(ready_at) - julianday(sent_at)) * 1440) AS avg_minutes FROM orders
+    // Computed in JS rather than with julianday() so the SQL stays portable (SQLite/Postgres).
+    const timed = await db.all(`SELECT sent_at, ready_at FROM orders
       WHERE ready_at IS NOT NULL AND sent_at IS NOT NULL AND business_date BETWEEN ? AND ?`, ...range);
+    const speedMin = timed.length ? timed.reduce((sum, r) => sum + (Date.parse(r.ready_at) - Date.parse(r.sent_at)), 0) / timed.length / 60000 : null;
 
     return {
       from, to,
       sales: { ...sales, average_ticket: sales.orders ? Math.round(sales.net_sales / sales.orders) : 0 },
       refunds, voids, payments, by_type: byType, by_source: bySource, top_items: topItems, by_category: byCategory, daily, hourly,
-      kitchen_avg_minutes: speed.avg_minutes ? Math.round(speed.avg_minutes * 10) / 10 : null,
+      kitchen_avg_minutes: speedMin != null ? Math.round(speedMin * 10) / 10 : null,
     };
   }
 

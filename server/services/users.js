@@ -31,7 +31,7 @@ function createUserService(db, { sessionTtlHours }) {
   }
 
   async function create({ username, full_name, role, password, pin }) {
-    if (await db.get('SELECT 1 AS x FROM users WHERE username = ?', username)) throw conflict('Username already exists');
+    if (await db.get('SELECT 1 AS x FROM users WHERE lower(username) = lower(?)', username)) throw conflict('Username already exists');
     const r = await db.run(`INSERT INTO users (username, full_name, role, password_hash, pin_hash, active, created_at)
       VALUES (?, ?, ?, ?, ?, 1, ?)`, username, full_name, role, hashSecret(password), pin ? hashSecret(pin) : null, nowIso());
     return get(r.lastInsertRowid);
@@ -85,7 +85,7 @@ function createUserService(db, { sessionTtlHours }) {
   }
 
   async function loginWithPassword(username, password, terminal) {
-    const u = await db.get('SELECT * FROM users WHERE username = ? AND active = 1', username);
+    const u = await db.get('SELECT * FROM users WHERE lower(username) = lower(?) AND active = 1', username);
     const ok = verifySecret(password, u ? u.password_hash : DUMMY_HASH);
     if (!u || !ok) throw unauthorized('Invalid username or password');
     return issueSession(u, terminal);

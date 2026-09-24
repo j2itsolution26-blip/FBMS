@@ -18,7 +18,7 @@ test('browser pricing module is the server module and agrees with it', async () 
 test('demo history seeds and produces consistent Z-readings', async () => {
   const { createApp } = require('../server/app');
   const { seedIfEmpty } = require('../server/db/seed');
-  const app = await createApp({ ...testDb(), publicDir: __dirname, quiet: true });
+  const app = await createApp({ ...(await testDb()), publicDir: __dirname, quiet: true });
   try {
     await seedIfEmpty(app.services);
     const zs = await app.services.reports.zReadings();
@@ -34,7 +34,7 @@ test('demo history seeds and produces consistent Z-readings', async () => {
 
 test('first-run setup creates the owner on an empty database', async () => {
   const { createApp } = require('../server/app');
-  const app = await createApp({ ...testDb(), quiet: true });
+  const app = await createApp({ ...(await testDb()), quiet: true });
   await new Promise((r) => app.server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${app.server.address().port}`;
   const post = (url, body) => fetch(base + url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });

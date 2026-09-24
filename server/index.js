@@ -5,7 +5,7 @@ const { createApp, log } = require('./app');
 const { seedIfEmpty } = require('./db/seed');
 
 async function main() {
-  const app = await createApp({ dbPath: config.dbPath, dbUrl: config.dbUrl, dbAuthToken: config.dbAuthToken, publicDir: config.publicDir });
+  const app = await createApp({ dbPath: config.dbPath, dbUrl: config.dbUrl, dbAuthToken: config.dbAuthToken, pgUrl: config.pgUrl, publicDir: config.publicDir });
   if (config.seedDemo) {
     const seeded = await seedIfEmpty(app.services, { history: config.seedHistory });
     if (seeded) log('info', 'Seeded demo data', { logins: seeded });
@@ -14,7 +14,7 @@ async function main() {
   }
 
   app.server.listen(config.port, config.host, () => {
-    log('info', 'FBMS POS listening', { url: `http://localhost:${config.port}`, db: config.dbUrl ? 'remote (libSQL)' : config.dbPath });
+    log('info', 'FBMS POS listening', { url: `http://localhost:${config.port}`, db: app.db.kind === 'local' ? config.dbPath : app.db.kind });
   });
 
   function shutdown(sig) {

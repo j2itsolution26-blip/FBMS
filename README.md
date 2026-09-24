@@ -2,7 +2,7 @@
 
 A point-of-sale system for quick-service chains (counter, drive-thru, self-order kiosk) and full-service restaurants (tables, open tabs, rounds). It is built for Philippine operations: VAT-inclusive pricing, Senior Citizen / PWD discounts, official-receipt numbering, and X/Z readings.
 
-It runs on Node.js 22. An in-store server uses Node's built-in SQLite, so a single `npm start` runs it on any till PC, mini-PC or container. It also runs on **Vercel** with a hosted Turso database (see below).
+It runs on Node.js 22. An in-store server uses Node's built-in SQLite, so a single `npm start` runs it on any till PC, mini-PC or container. It also runs on **Vercel** with a hosted **Neon (PostgreSQL)** or **Turso** database (see below).
 
 | Screen | URL | Who |
 |---|---|---|
@@ -18,7 +18,8 @@ It runs on Node.js 22. An in-store server uses Node's built-in SQLite, so a sing
 ```bash
 cp .env.example .env      # optional
 npm start                 # http://localhost:8080
-npm test                  # unit + API tests, on both database backends
+npm test                  # unit + API tests on SQLite and libSQL
+FBMS_TEST_PG_URL=postgres://user@localhost:5432/postgres npm run test:postgres   # same suite on PostgreSQL
 ```
 
 On first boot an empty database is seeded with a demo menu, recipes and stock, 16 tables and about two weeks of sales history, so the dashboard has data to show.
@@ -86,7 +87,7 @@ server/
   index.js            process entry for a long-running server (boot, seed, graceful shutdown)
   app.js              composition root: DB → services → HTTP
   config.js           env-driven configuration
-  db/                 async DB layer (node:sqlite locally, libSQL/Turso remote), migrations/, seed
+  db/                 async DB layer (node:sqlite, libSQL/Turso, PostgreSQL/Neon), migrations/, seed
   http/               router, static files, SSE event bus, rate limiter
   auth/               scrypt hashing, RBAC capability map
   services/           business logic (orders, pricing, shifts, inventory, reports, …)
@@ -101,7 +102,8 @@ tests/                node:test unit + API integration tests
 |---|---|---|
 | `PORT` / `HOST` | `8080` / `0.0.0.0` | Listen address |
 | `DB_PATH` | `./data/fbms.db` | Local SQLite file (WAL mode) |
-| `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` | — | Hosted libSQL/Turso database; used instead of `DB_PATH` (required on Vercel) |
+| `DATABASE_URL` (or `POSTGRES_URL`) | — | PostgreSQL / Neon connection string; used instead of `DB_PATH` |
+| `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` | — | Hosted libSQL/Turso database; used instead of `DB_PATH` |
 | `SEED_HISTORY` | `true` locally, `false` on Vercel | Also seed two weeks of demo sales |
 | `SESSION_TTL_HOURS` | `12` | Staff session lifetime |
 | `SEED_DEMO` | `true` | Seed demo data into an empty DB |
@@ -111,16 +113,18 @@ Store name, TIN, permit number, VAT, service charge and KDS thresholds are set i
 
 ## Deploy to Vercel
 
-Vercel serves the pages from `public/` and runs the API as a serverless function (`api/index.js`). Serverless functions have no disk that persists, so the data lives in a hosted **Turso** database. Turso is SQLite-compatible and has a free tier.
+Vercel serves the pages from `public/` and runs the API as a serverless function (`api/index.js`). Serverless functions have no disk that persists, so the data must live in a hosted database. Use **Neon** (PostgreSQL) or **Turso** (SQLite-compatible). Both have free tiers.
 
-1. **Create the database.** Sign up at [turso.tech](https://turso.tech), create a database, then copy its **URL** (`libsql://…turso.io`) and create an **auth token**.
-   (Alternatively, add Turso from the **Vercel Marketplace**, which fills in the variables for you.)
-2. **Add environment variables** in Vercel → your project → **Settings → Environment Variables**:
-   - `TURSO_DATABASE_URL` = the `libsql://…` URL
-   - `TURSO_AUTH_TOKEN` = the token
-   - optional `SEED_DEMO=false` to start empty and create your own owner account instead of the demo logins
-   - optional `SEED_HISTORY=true` to also load two weeks of demo sales for the dashboard
-3. **Redeploy** (Deployments → ⋯ → Redeploy). The first request creates the tables and, unless you turned it off, loads the demo menu and staff.
+**With Neon (PostgreSQL)**
+1. In the Neon console, open your project → **Connect**, and copy the connection string (`postgresql://…neon.tech/neondb?sslmode=require…`). The pooled one (host contains `-pooler`) is best for serverless.
+   (Or add Neon from Vercel → **Storage** / **Marketplace**, which sets `DATABASE_URL` for you.)
+2. In Vercel → your project → **Settings → Environment Variables**, add `DATABASE_URL` = that connection string.
+3. Optional: `SEED_DEMO=false` to start empty and create your own owner account; `SEED_HISTORY=true` to load two weeks of demo sales.
+4. **Redeploy** (Deployments → ⋯ → Redeploy). The first request creates the tables and, unless turned off, loads the demo menu and staff.
+
+**With Turso**, set `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` instead of `DATABASE_URL`.
+
+Never commit a connection string to the repository; it contains the database password.
 
 `vercel.json` already sets the build step, the clean URLs (`/pos`, `/kds`, …) and the API route. On Vercel, live updates (kitchen display, Now Serving board, kiosk alerts on the POS) arrive by polling every few seconds instead of a live stream. An in-store server pushes them instantly.
 

@@ -22,7 +22,7 @@ const NON_CASH = ['card', 'gcash', 'maya', 'voucher'];
 
 function createOrderService({ db, settings, users, inventory, shifts, audit, bus }) {
   async function nextCounter(name, start = 1) {
-    await db.run('INSERT INTO counters (name, value) VALUES (?, ?) ON CONFLICT(name) DO UPDATE SET value = value + 1', name, start);
+    await db.run('INSERT INTO counters (name, value) VALUES (?, ?) ON CONFLICT(name) DO UPDATE SET value = counters.value + 1', name, start);
     return (await db.get('SELECT value FROM counters WHERE name = ?', name)).value;
   }
 
@@ -104,8 +104,8 @@ function createOrderService({ db, settings, users, inventory, shifts, audit, bus
     if (type) { where.push('o.type = ?'); args.push(type); }
     if (source) { where.push('o.source = ?'); args.push(source); }
     if (q) {
-      where.push('(CAST(o.order_no AS TEXT) = ? OR CAST(o.or_number AS TEXT) = ? OR o.customer_name LIKE ?)');
-      args.push(q, q, `%${q}%`);
+      where.push('(CAST(o.order_no AS TEXT) = ? OR CAST(o.or_number AS TEXT) = ? OR lower(o.customer_name) LIKE ?)');
+      args.push(q, q, `%${q.toLowerCase()}%`);
     }
     args.push(limit);
     return db.all(`SELECT o.id, o.order_no, o.or_number, o.business_date, o.type, o.source, o.status, o.kitchen_status, o.total,

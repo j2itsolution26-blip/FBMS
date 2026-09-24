@@ -191,7 +191,7 @@ test('input validation and unknown routes', async () => {
 });
 
 // libSQL file mode (test-only stand-in for Turso) has no busy-wait between
-// connections, so the concurrency check is meaningful only for the local backend.
+// connections, so the concurrency check is skipped for it.
 test('concurrent orders get unique numbers and consistent totals', { skip: process.env.FBMS_TEST_BACKEND === 'libsql' }, async () => {
   const lines = [{ item_id: (await t.item('B1')).id, qty: 1 }];
   const results = await Promise.all(Array.from({ length: 25 }, () => t.call('POST', '/api/orders', { lines }, cashier)));

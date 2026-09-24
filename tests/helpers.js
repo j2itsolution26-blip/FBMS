@@ -5,18 +5,31 @@ const { createApp } = require('../server/app');
 const { seedIfEmpty } = require('../server/db/seed');
 
 /**
- * Database for a test app. FBMS_TEST_BACKEND=libsql exercises the remote
- * (Turso/Vercel) code path against a throwaway libSQL file.
+ * Database for a test app, chosen by FBMS_TEST_BACKEND:
+ *   (unset)  → in-memory node:sqlite
+ *   libsql   → throwaway libSQL file (the Turso code path)
+ *   postgres → a fresh database on FBMS_TEST_PG_URL (the Neon code path)
  */
-function testDb() {
-  if (process.env.FBMS_TEST_BACKEND !== 'libsql') return { dbPath: ':memory:' };
-  const file = path.join(os.tmpdir(), `fbms-test-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}.db`);
-  return { dbUrl: `file:${file}` };
+async function testDb() {
+  const backend = process.env.FBMS_TEST_BACKEND;
+  const tag = `${process.pid}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  if (backend === 'libsql') return { dbUrl: `file:${path.join(os.tmpdir(), `fbms-test-${tag}.db`)}` };
+  if (backend === 'postgres') {
+    const { Client } = require('pg');
+    const admin = new Client({ connectionString: process.env.FBMS_TEST_PG_URL });
+    await admin.connect();
+    await admin.query(`CREATE DATABASE fbms_test_${tag}`);
+    await admin.end();
+    const url = new URL(process.env.FBMS_TEST_PG_URL);
+    url.pathname = `/fbms_test_${tag}`;
+    return { pgUrl: url.toString() };
+  }
+  return { dbPath: ':memory:' };
 }
 
 /** Boot a real server on an in-memory DB with the demo catalogue (no history). */
 async function startTestApp() {
-  const app = await createApp({ ...testDb(), publicDir: path.join(__dirname, '..', 'public'), quiet: true });
+  const app = await createApp({ ...(await testDb()), publicDir: path.join(__dirname, '..', 'public'), quiet: true });
   await seedIfEmpty(app.services, { history: false });
   await new Promise((r) => app.server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${app.server.address().port}`;

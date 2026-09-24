@@ -26,12 +26,15 @@ async function seedIfEmpty(s, { history = true } = {}) {
   if (await db.get('SELECT 1 AS x FROM users LIMIT 1')) return null;
   try {
     await db.batch(catalogueStatements()); // one atomic round-trip
+    // Postgres identity sequences don't see explicit ids; move them past the seed.
+    await db.syncSequences?.();
   } catch (e) {
     // A second serverless instance can race us on first boot; theirs won.
     if (await db.get('SELECT 1 AS x FROM users LIMIT 1')) return null;
     throw e;
   }
   if (history) await seedHistory(s);
+  await db.syncSequences?.();
   return STAFF.map((u) => `${u.role}: ${u.username} / ${u.password} (PIN ${u.pin})`);
 }
 
@@ -285,8 +288,8 @@ if (require.main === module) {
   const { buildServices } = require('../app');
   const { openDatabase } = require('./database');
   const run = async () => {
-    if (config.dbUrl) {
-      console.log('Refusing to wipe a hosted database from the CLI. Delete and recreate it in your Turso dashboard instead.');
+    if (config.dbUrl || config.pgUrl) {
+      console.log('Refusing to wipe a hosted database from the CLI. Reset it from your database provider\'s dashboard instead.');
       return;
     }
     for (const suffix of ['', '-wal', '-shm']) fs.rmSync(config.dbPath + suffix, { force: true });

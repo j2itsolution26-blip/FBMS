@@ -18,6 +18,8 @@ const config = {
   // required on serverless hosts (Vercel) that have no persistent disk.
   dbUrl: process.env.TURSO_DATABASE_URL || process.env.LIBSQL_URL || '',
   dbAuthToken: process.env.TURSO_AUTH_TOKEN || process.env.LIBSQL_AUTH_TOKEN || '',
+  // PostgreSQL (e.g. Neon). Vercel's Neon integration sets DATABASE_URL / POSTGRES_URL.
+  pgUrl: process.env.DATABASE_URL || process.env.POSTGRES_URL || '',
   serverless: !!process.env.VERCEL,
   sessionTtlHours: Number(process.env.SESSION_TTL_HOURS || 12),
   seedDemo: bool(process.env.SEED_DEMO, true),
