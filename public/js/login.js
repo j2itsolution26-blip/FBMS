@@ -1,4 +1,4 @@
-import { api, session, h, $, toastError, keypad, store } from './core.js';
+import { api, session, h, $, toastError, keypad, store, publicConfig } from './core.js';
 
 const HOME = { admin: '/admin', manager: '/admin', cashier: '/pos', kitchen: '/kds' };
 const APPS = [
@@ -13,7 +13,6 @@ const termInput = $('#terminal');
 termInput.value = store.get('fbms.terminal') || 'POS-1';
 termInput.onchange = () => store.set('fbms.terminal', termInput.value.trim() || 'POS-1');
 
-api('GET', '/api/public/config').then((c) => { $('#store-name').textContent = c.store_name; }).catch(() => {});
 
 function afterLogin(s) {
   session.set(s);
@@ -89,6 +88,42 @@ $('#pw-login').onsubmit = async (e) => {
   catch (err) { toastError(err); }
 };
 
-if (session.token) {
-  api('GET', '/api/auth/me').then(() => (next ? (location.href = next) : showLauncher())).catch(() => { session.clear(); loadRoster(); });
-} else loadRoster();
+// ---- server status / first-run setup ----
+function showServerProblem(e) {
+  const el = $('#server-alert');
+  el.classList.remove('hidden');
+  if (e.details === 'DATABASE_NOT_CONFIGURED' || e.details === 'DATABASE_UNAVAILABLE') {
+    el.innerHTML = `<b>The POS database isn't connected yet</b>${h(e.message)}<br>See the README section “Deploy to Vercel”.`;
+  } else {
+    el.innerHTML = `<b>Can't reach the POS server</b>${h(e.message)}`;
+  }
+  $('#view-login').classList.add('hidden');
+}
+
+function showSetup() {
+  $('#view-login').classList.add('hidden');
+  $('#view-setup').classList.remove('hidden');
+}
+$('#view-setup').onsubmit = async (e) => {
+  e.preventDefault();
+  const f = Object.fromEntries(new FormData(e.target));
+  const btn = e.target.querySelector('button');
+  btn.disabled = true;
+  try {
+    const s = await api('POST', '/api/setup', { ...f, store_name: f.store_name.trim() || undefined });
+    session.set(s);
+    location.href = '/admin';
+  } catch (err) { btn.disabled = false; toastError(err); }
+};
+
+async function start() {
+  let cfg;
+  try { cfg = await publicConfig(); } catch (e) { return showServerProblem(e); }
+  $('#store-name').textContent = cfg.store_name;
+  if (cfg.needs_setup) return showSetup();
+  if (session.token) {
+    try { await api('GET', '/api/auth/me'); return next ? (location.href = next) : showLauncher(); } catch { session.clear(); }
+  }
+  loadRoster();
+}
+start();

@@ -33,26 +33,29 @@ const VALIDATORS = {
 };
 
 function createSettingsService(db) {
-  function all() {
+  async function all() {
     const out = { ...DEFAULTS };
-    for (const row of db.prepare('SELECT key, value FROM settings').all()) {
+    for (const row of await db.all('SELECT key, value FROM settings')) {
       if (row.key in DEFAULTS) out[row.key] = JSON.parse(row.value);
     }
     return out;
   }
 
-  function update(patch) {
-    const upsert = db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value');
+  async function update(patch) {
     for (const [k, v] of Object.entries(patch)) {
       if (!(k in VALIDATORS)) throw badRequest(`Unknown setting ${k}`);
       if (!VALIDATORS[k](v)) throw badRequest(`Invalid value for ${k}`);
     }
-    for (const [k, v] of Object.entries(patch)) upsert.run(k, JSON.stringify(v));
+    await db.transaction(async () => {
+      for (const [k, v] of Object.entries(patch)) {
+        await db.run('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', k, JSON.stringify(v));
+      }
+    });
     return all();
   }
 
   /** Effective VAT rate: 0 for non-VAT-registered stores. */
-  function vatBps(s = all()) {
+  function vatBps(s) {
     return s.vat_registered ? s.vat_bps : 0;
   }
 

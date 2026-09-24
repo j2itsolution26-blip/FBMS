@@ -27,12 +27,15 @@ export async function api(method, url, body) {
     throw new ApiError(0, 'Cannot reach the server. Check the network connection.');
   }
   const text = await res.text();
-  const data = text ? JSON.parse(text) : null;
+  let data = null;
+  try { data = text ? JSON.parse(text) : null; } catch {
+    throw new ApiError(res.status, res.status === 404 ? 'The POS server is not running at this address (API not found).' : `Unexpected server response (${res.status})`);
+  }
   if (res.status === 401 && !url.startsWith('/api/auth/login')) {
     session.clear();
     if (!location.pathname.match(/^\/(index\.html)?$/)) location.href = `/?next=${encodeURIComponent(location.pathname)}`;
   }
-  if (!res.ok) throw new ApiError(res.status, data?.error || `Request failed (${res.status})`, data?.details);
+  if (!res.ok) throw new ApiError(res.status, data?.error || `Request failed (${res.status})`, data?.details ?? data?.code);
   return data;
 }
 
@@ -163,17 +166,45 @@ export async function withApproval(fn, reason) {
   }
 }
 
-/** Subscribe to live order events (Server-Sent Events). */
+let configPromise;
+/** Public store config (cached per page load). */
+export function publicConfig() {
+  configPromise ||= api('GET', '/api/public/config').catch((e) => { configPromise = null; throw e; });
+  return configPromise;
+}
+
+/**
+ * Subscribe to live order events. Uses Server-Sent Events where the server
+ * can hold a stream (in-store server); on serverless hosts (Vercel) it polls
+ * /api/public/changes instead. Returns an unsubscribe function.
+ */
 export function liveEvents(onEvent, onStatus) {
+  let stopped = false;
   let es;
-  const connect = () => {
+  let timer;
+  const startPolling = () => {
+    let since = new Date().toISOString();
+    const tick = async () => {
+      if (stopped) return;
+      try {
+        const r = await api('GET', `/api/public/changes?since=${encodeURIComponent(since)}`);
+        since = r.now;
+        onStatus?.(true);
+        for (const ev of r.events) onEvent(ev);
+      } catch { onStatus?.(false); }
+      timer = setTimeout(tick, document.hidden ? 15000 : 4000);
+    };
+    tick();
+  };
+  publicConfig().then((cfg) => {
+    if (stopped) return;
+    if (cfg.realtime === false) return startPolling();
     es = new EventSource('/api/public/events');
     es.addEventListener('order', (e) => { try { onEvent(JSON.parse(e.data)); } catch { /* ignore bad frame */ } });
     es.onopen = () => onStatus?.(true);
     es.onerror = () => onStatus?.(false);
-  };
-  connect();
-  return () => es?.close();
+  }).catch(() => { if (!stopped) startPolling(); });
+  return () => { stopped = true; es?.close(); clearTimeout(timer); };
 }
 
 export function startClock(el) {

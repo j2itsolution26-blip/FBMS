@@ -15,13 +15,13 @@ test.before(async () => {
 });
 test.after(() => t.stop());
 
-const meal = () => ({
-  item_id: t.item('VM2').id, qty: 2,
-  modifiers: [t.option('Large Fries').id, t.option('Cola (Reg)').id, t.option('Extra Cheese').id],
+const meal = async () => ({
+  item_id: (await t.item('VM2')).id, qty: 2,
+  modifiers: [(await t.option('Large Fries')).id, (await t.option('Cola (Reg)')).id, (await t.option('Extra Cheese')).id],
 });
 
 test('auth: bad PIN and missing token are rejected', async () => {
-  const id = t.app.db.prepare("SELECT id FROM users WHERE username='juan'").get().id;
+  const id = (await t.app.db.get("SELECT id FROM users WHERE username='juan'")).id;
   assert.equal((await t.call('POST', '/api/auth/login', { user_id: id, pin: '0000' })).status, 401);
   assert.equal((await t.call('GET', '/api/orders')).status, 401);
 });
@@ -32,7 +32,7 @@ test('rbac: kitchen staff cannot use the till or see reports', async () => {
 });
 
 test('quick-service flow: combo priced server-side → cash payment → KDS → served', async () => {
-  const created = await t.call('POST', '/api/orders', { type: 'take_out', lines: [{ ...meal(), unit_price: 1 }] }, cashier);
+  const created = await t.call('POST', '/api/orders', { type: 'take_out', lines: [{ ...(await meal()), unit_price: 1 }] }, cashier);
   assert.equal(created.status, 201);
   const o = created.body;
   // ₱189 + ₱30 large fries + ₱15 cheese = ₱234 each, x2. Client price ignored.
@@ -46,14 +46,14 @@ test('quick-service flow: combo priced server-side → cash payment → KDS → 
   const short = await t.call('POST', `/api/orders/${o.id}/pay`, { payments: [{ method: 'cash', amount: 40000 }] }, cashier);
   assert.equal(short.status, 400);
 
-  const bunsBefore = t.app.db.prepare("SELECT stock FROM ingredients WHERE name='Burger Bun'").get().stock;
+  const bunsBefore = (await t.app.db.get("SELECT stock FROM ingredients WHERE name='Burger Bun'")).stock;
   const paid = await t.call('POST', `/api/orders/${o.id}/pay`, { payments: [{ method: 'cash', amount: 50000 }] }, cashier);
   assert.equal(paid.status, 200);
   assert.equal(paid.body.change, 3200);
   assert.equal(paid.body.order.status, 'paid');
   assert.equal(paid.body.order.kitchen_status, 'queued', 'QSR orders auto-fire to the kitchen on payment');
   assert.ok(paid.body.order.or_number >= 1);
-  const bunsAfter = t.app.db.prepare("SELECT stock FROM ingredients WHERE name='Burger Bun'").get().stock;
+  const bunsAfter = (await t.app.db.get("SELECT stock FROM ingredients WHERE name='Burger Bun'")).stock;
   assert.equal(bunsBefore - bunsAfter, 2, 'recipe stock deducted');
 
   const kds = await t.call('GET', '/api/kds', null, kitchen);
@@ -66,15 +66,15 @@ test('quick-service flow: combo priced server-side → cash payment → KDS → 
 });
 
 test('modifier rules are enforced', async () => {
-  const missing = await t.call('POST', '/api/orders', { lines: [{ item_id: t.item('VM2').id, qty: 1, modifiers: [] }] }, cashier);
+  const missing = await t.call('POST', '/api/orders', { lines: [{ item_id: (await t.item('VM2')).id, qty: 1, modifiers: [] }] }, cashier);
   assert.equal(missing.status, 400);
   assert.match(missing.body.error, /choose at least 1/);
-  const foreign = await t.call('POST', '/api/orders', { lines: [{ item_id: t.item('B1').id, qty: 1, modifiers: [t.option('Hot Fudge').id] }] }, cashier);
+  const foreign = await t.call('POST', '/api/orders', { lines: [{ item_id: (await t.item('B1')).id, qty: 1, modifiers: [(await t.option('Hot Fudge')).id] }] }, cashier);
   assert.equal(foreign.status, 400);
 });
 
 test('86 an item blocks new sales of it', async () => {
-  const id = t.item('E3').id;
+  const id = (await t.item('E3')).id;
   assert.equal((await t.call('POST', `/api/menu/items/${id}/availability`, { available: false }, cashier)).status, 200);
   const r = await t.call('POST', '/api/orders', { lines: [{ item_id: id, qty: 1 }] }, cashier);
   assert.equal(r.status, 409);
@@ -83,13 +83,13 @@ test('86 an item blocks new sales of it', async () => {
 
 test('full-service: send rounds, sent lines need manager to remove, split tender', async () => {
   const tbl = (await t.call('GET', '/api/tables', null, cashier)).body[0];
-  const o = (await t.call('POST', '/api/orders', { type: 'dine_in', table_id: tbl.id, guest_count: 2, lines: [{ item_id: t.item('C2').id, qty: 1, modifiers: [t.option('Spicy').id] }] }, cashier)).body;
+  const o = (await t.call('POST', '/api/orders', { type: 'dine_in', table_id: tbl.id, guest_count: 2, lines: [{ item_id: (await t.item('C2')).id, qty: 1, modifiers: [(await t.option('Spicy')).id] }] }, cashier)).body;
   assert.equal((await t.call('POST', `/api/orders/${o.id}/send`, null, cashier)).body.kitchen_status, 'queued');
   const tables = (await t.call('GET', '/api/tables', null, cashier)).body;
   assert.equal(tables.find((x) => x.id === tbl.id).order_id, o.id, 'table shows as occupied');
 
   const cur = (await t.call('GET', `/api/orders/${o.id}`, null, cashier)).body;
-  const round2 = [{ id: cur.lines[0].id, item_id: cur.lines[0].item_id, qty: 1, modifiers: [t.option('Spicy').id] }, { item_id: t.item('D1').id, qty: 2, modifiers: [t.option('Regular').id] }];
+  const round2 = [{ id: cur.lines[0].id, item_id: cur.lines[0].item_id, qty: 1, modifiers: [(await t.option('Spicy')).id] }, { item_id: (await t.item('D1')).id, qty: 2, modifiers: [(await t.option('Regular')).id] }];
   const upd = await t.call('PUT', `/api/orders/${o.id}`, { lines: round2 }, cashier);
   assert.equal(upd.status, 200);
   assert.equal(upd.body.lines.length, 2);
@@ -111,7 +111,7 @@ test('full-service: send rounds, sent lines need manager to remove, split tender
 });
 
 test('senior citizen discount needs ID numbers and applies to share', async () => {
-  const body = { type: 'dine_in', guest_count: 2, sc_pwd_count: 1, lines: [{ item_id: t.item('R4').id, qty: 2 }] };
+  const body = { type: 'dine_in', guest_count: 2, sc_pwd_count: 1, lines: [{ item_id: (await t.item('R4')).id, qty: 2 }] };
   assert.equal((await t.call('POST', '/api/orders', body, cashier)).status, 400);
   const o = (await t.call('POST', '/api/orders', { ...body, sc_pwd_ids: ['SC-1234'] }, cashier)).body;
   // ₱50: SC share ₱25 → 22.32 exempt → 4.46 off; other ₱25 full.
@@ -121,7 +121,7 @@ test('senior citizen discount needs ID numbers and applies to share', async () =
 });
 
 test('manual discount requires manager approval', async () => {
-  const o = (await t.call('POST', '/api/orders', { lines: [{ item_id: t.item('B2').id, qty: 1 }] }, cashier)).body;
+  const o = (await t.call('POST', '/api/orders', { lines: [{ item_id: (await t.item('B2')).id, qty: 1 }] }, cashier)).body;
   const disc = { type: 'percent', value: 1000, label: 'Promo 10%' };
   assert.equal((await t.call('PUT', `/api/orders/${o.id}`, { discount: disc }, cashier)).status, 403);
   assert.equal((await t.call('PUT', `/api/orders/${o.id}`, { discount: disc, manager_pin: '1111' }, cashier)).status, 403, 'cashier PIN is not a manager PIN');
@@ -131,20 +131,20 @@ test('manual discount requires manager approval', async () => {
 });
 
 test('void open order and refund paid order require approval', async () => {
-  const o = (await t.call('POST', '/api/orders', { lines: [{ item_id: t.item('S1').id, qty: 1 }] }, cashier)).body;
+  const o = (await t.call('POST', '/api/orders', { lines: [{ item_id: (await t.item('S1')).id, qty: 1 }] }, cashier)).body;
   assert.equal((await t.call('POST', `/api/orders/${o.id}/void`, { reason: 'Test void' }, cashier)).status, 403);
   const v = await t.call('POST', `/api/orders/${o.id}/void`, { reason: 'Test void', manager_pin: '2222' }, cashier);
   assert.equal(v.body.status, 'voided');
   assert.equal((await t.call('POST', `/api/orders/${o.id}/pay`, { payments: [{ method: 'cash', amount: 10000 }] }, cashier)).status, 409);
 
-  const p = (await t.call('POST', '/api/orders', { lines: [{ item_id: t.item('S1').id, qty: 1 }] }, cashier)).body;
+  const p = (await t.call('POST', '/api/orders', { lines: [{ item_id: (await t.item('S1')).id, qty: 1 }] }, cashier)).body;
   await t.call('POST', `/api/orders/${p.id}/pay`, { payments: [{ method: 'cash', amount: 10000 }] }, cashier);
-  const fries = () => t.app.db.prepare("SELECT stock FROM ingredients WHERE name='Potato Fries'").get().stock;
-  const before = fries();
+  const fries = async () => (await t.app.db.get("SELECT stock FROM ingredients WHERE name='Potato Fries'")).stock;
+  const before = await fries();
   const r = await t.call('POST', `/api/orders/${p.id}/refund`, { reason: 'Wrong order', manager_pin: '2222', restock: true }, cashier);
   assert.equal(r.status, 200);
   assert.equal(r.body.status, 'refunded');
-  assert.equal(fries() - before, 100);
+  assert.equal((await fries()) - before, 100);
 });
 
 test('shift close computes expected cash and variance', async () => {
@@ -157,7 +157,7 @@ test('shift close computes expected cash and variance', async () => {
 });
 
 test('kiosk order is priced server-side and lands as open for the cashier', async () => {
-  const r = await t.call('POST', '/api/kiosk/orders', { type: 'dine_in', lines: [meal()] });
+  const r = await t.call('POST', '/api/kiosk/orders', { type: 'dine_in', lines: [await meal()] });
   assert.equal(r.status, 201);
   assert.equal(r.body.total, 46800);
   const open = (await t.call('GET', '/api/orders?status=open&source=kiosk', null, cashier)).body;
@@ -178,7 +178,7 @@ test('users: admin can create staff, last admin cannot be disabled', async () =>
   const u = await t.call('POST', '/api/users', { username: 'rico', full_name: 'Rico Tan', role: 'cashier', password: 'Password123', pin: '5555' }, admin);
   assert.equal(u.status, 201);
   assert.equal((await t.call('POST', '/api/users', { username: 'x', full_name: 'X', role: 'cashier', password: 'short' }, admin)).status, 400);
-  const adminId = t.app.db.prepare("SELECT id FROM users WHERE username='admin'").get().id;
+  const adminId = (await t.app.db.get("SELECT id FROM users WHERE username='admin'")).id;
   assert.equal((await t.call('PATCH', `/api/users/${adminId}`, { active: false }, admin)).status, 409);
   assert.equal((await t.call('GET', '/api/users', null, manager)).status, 403);
 });
@@ -188,4 +188,29 @@ test('input validation and unknown routes', async () => {
   assert.equal((await t.call('GET', '/api/nope', null, cashier)).status, 404);
   const res = await fetch(`${t.base}/../../etc/passwd`);
   assert.equal(res.status, 404);
+});
+
+// libSQL file mode (test-only stand-in for Turso) has no busy-wait between
+// connections, so the concurrency check is meaningful only for the local backend.
+test('concurrent orders get unique numbers and consistent totals', { skip: process.env.FBMS_TEST_BACKEND === 'libsql' }, async () => {
+  const lines = [{ item_id: (await t.item('B1')).id, qty: 1 }];
+  const results = await Promise.all(Array.from({ length: 25 }, () => t.call('POST', '/api/orders', { lines }, cashier)));
+  assert.ok(results.every((r) => r.status === 201), JSON.stringify(results.find((r) => r.status !== 201)?.body));
+  const nums = new Set(results.map((r) => r.body.order_no));
+  assert.equal(nums.size, 25);
+});
+
+test('polling feed reports recent order changes without personal data', async () => {
+  const since = new Date(Date.now() - 5000).toISOString();
+  await t.call('POST', '/api/kiosk/orders', { type: 'take_out', customer_name: 'Secret Name', lines: [{ item_id: (await t.item('S1')).id, qty: 1 }] });
+  const r = await t.call('GET', `/api/public/changes?since=${encodeURIComponent(since)}`);
+  assert.equal(r.status, 200);
+  assert.ok(r.body.events.some((e) => e.type === 'order.created' && e.source === 'kiosk'));
+  assert.ok(!JSON.stringify(r.body).includes('Secret Name'));
+});
+
+test('first-run setup is refused once users exist', async () => {
+  const r = await t.call('POST', '/api/setup', { username: 'owner', full_name: 'Owner', password: 'Password123', pin: '7777' });
+  assert.equal(r.status, 409);
+  assert.equal((await t.call('GET', '/api/public/config')).body.needs_setup, false);
 });

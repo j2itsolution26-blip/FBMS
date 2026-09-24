@@ -14,3 +14,6 @@
 .launch-grid a b { font-size: 17px; }
 .launch-grid .ico { font-size: 30px; }
 @media (max-width: 860px) { .login-shell { grid-template-columns: 1fr; padding: 16px; } .hero-grid { grid-template-columns: 1fr; } }
+.alert { border-radius: var(--radius-sm); padding: 12px 14px; background: var(--bad-soft); color: var(--bad); font-size: 14px; line-height: 1.45; }
+.alert b { display: block; margin-bottom: 4px; }
+.alert code { background: rgba(0,0,0,.06); padding: 1px 5px; border-radius: 5px; font-size: 13px; }

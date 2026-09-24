@@ -796,9 +796,11 @@ $('#btn-menu').onclick = () => {
 function onLiveEvent(ev) {
   if (ev.type === 'order.created' && ev.source === 'kiosk') toast(`🖐️ New kiosk order #${pad(ev.order_no)} — awaiting payment`);
   if (ev.type === 'order.kitchen' && ev.kitchen_status === 'ready') toast(`✅ Order #${pad(ev.order_no)} is ready`);
-  if (['order.created', 'order.paid', 'order.voided', 'order.sent'].includes(ev.type)) refreshOpenCount();
+  if (['order.created', 'order.updated', 'order.paid', 'order.voided', 'order.sent'].includes(ev.type)) refreshOpenCountSoon();
   if (ev.type === 'order.paid') reloadMenuSoon();
 }
+let countTimer;
+function refreshOpenCountSoon() { clearTimeout(countTimer); countTimer = setTimeout(refreshOpenCount, 300); }
 let menuTimer;
 function reloadMenuSoon() { clearTimeout(menuTimer); menuTimer = setTimeout(reloadMenu, 1500); }
 

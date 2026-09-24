@@ -1,5 +1,5 @@
 // Customer-facing "Now Serving" board. Public: shows order numbers only.
-import { api, $, pad, liveEvents, startClock } from './core.js';
+import { api, $, pad, liveEvents, startClock, publicConfig } from './core.js';
 
 let lastReady = new Set();
 let audio;
@@ -27,7 +27,7 @@ async function load() {
 }
 
 startClock($('#clock'));
-api('GET', '/api/public/config').then((c) => { $('#store').textContent = c.store_name; }).catch(() => {});
+publicConfig().then((c) => { $('#store').textContent = c.store_name; }).catch(() => {});
 load();
 setInterval(load, 15000);
 liveEvents(() => load());

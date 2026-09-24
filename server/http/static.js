@@ -9,21 +9,13 @@ const TYPES = {
 };
 const ALIASES = { '/': '/index.html', '/pos': '/pos.html', '/kds': '/kds.html', '/queue': '/queue.html', '/kiosk': '/kiosk.html', '/admin': '/admin.html' };
 
-// The server's pricing module, re-exported as an ES module for the browser.
-let pricingModule;
-function sharedPricing() {
-  if (!pricingModule) {
-    const src = fs.readFileSync(path.join(__dirname, '..', 'services', 'pricing.js'), 'utf8');
-    pricingModule = `const shared = (() => {\nconst module = { exports: {} };\n${src}\nreturn module.exports;\n})();\nexport const { computeTotals, priceLine, SC_PWD_DISCOUNT_BPS } = shared;\n`;
-  }
-  return pricingModule;
-}
+const { sharedPricingModule } = require('./sharedPricing');
 
 function serveStatic(root, req, res) {
   let pathname;
   try { pathname = decodeURIComponent(new URL(req.url, 'http://x').pathname); } catch { return false; }
   if (pathname === '/js/pricing.js') {
-    const body = sharedPricing();
+    const body = sharedPricingModule();
     res.writeHead(200, { 'Content-Type': TYPES['.js'], 'Content-Length': Buffer.byteLength(body), 'Cache-Control': 'no-cache' });
     return res.end(req.method === 'HEAD' ? undefined : body), true;
   }
