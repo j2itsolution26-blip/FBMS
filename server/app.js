@@ -112,8 +112,8 @@ function createHandler(services, { publicDir, quiet = false, realtime = true } =
 }
 
 /** Open the database and build a ready-to-listen http.Server. */
-async function createApp({ dbPath, dbUrl, dbAuthToken, publicDir, quiet = false, realtime = true }) {
-  const db = await openDatabase({ file: dbPath, url: dbUrl, authToken: dbAuthToken });
+async function createApp({ dbPath, dbUrl, dbAuthToken, pgUrl, publicDir, quiet = false, realtime = true }) {
+  const db = await openDatabase({ file: dbPath, url: dbUrl, authToken: dbAuthToken, pgUrl });
   const services = buildServices(db);
   const handler = createHandler(services, { publicDir, quiet, realtime });
   const server = http.createServer(handler);

@@ -1,4 +1,4 @@
-# FBMS POS. The only npm dependency is the libSQL client (used when TURSO_DATABASE_URL is set).
+# FBMS POS. npm dependencies are the Postgres and libSQL clients, used only when DATABASE_URL / TURSO_DATABASE_URL is set.
 FROM node:22-alpine
 WORKDIR /app
 ENV NODE_ENV=production PORT=8080 DB_PATH=/data/fbms.db

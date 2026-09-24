@@ -12,10 +12,12 @@
     "dev": "node --disable-warning=ExperimentalWarning --env-file-if-exists=.env --watch server/index.js",
     "seed": "node --disable-warning=ExperimentalWarning --env-file-if-exists=.env server/db/seed.js --reset",
     "test": "node --disable-warning=ExperimentalWarning --test \"tests/**/*.test.js\" && FBMS_TEST_BACKEND=libsql node --disable-warning=ExperimentalWarning --test \"tests/**/*.test.js\"",
-    "build": "node scripts/build.js"
+    "build": "node scripts/build.js",
+    "test:postgres": "FBMS_TEST_BACKEND=postgres node --disable-warning=ExperimentalWarning --test --test-concurrency=1 \"tests/**/*.test.js\""
   },
   "license": "UNLICENSED",
   "dependencies": {
-    "@libsql/client": "^0.18.0"
+    "@libsql/client": "^0.18.0",
+    "pg": "^8.23.0"
   }
 }
